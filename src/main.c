@@ -1,6 +1,8 @@
 #include "sapi.h"              // <= sAPI header
 #include "../../TPFSM/inc/TPFSM.h"
 #include "board.h"
+#include "sapi_tick.h"
+
 
 static void initHardware(void);
 
@@ -93,7 +95,6 @@ void Estado_ON(fsm_t *fsm) {
 }
 
 void Estado_OFF_Entry(fsm_t *fsm) {
-	gpioWrite(LEDG, OFF);
 	gpioWrite(LEDB, OFF);
 }
 
@@ -103,7 +104,7 @@ void Estado_OFF(fsm_t *fsm) {
 
 void Estado_Blinking_Entry(fsm_t *fsm) {
 	gpioWrite(LEDB, OFF);
-	gpioWrite(LEDG, ON);
+
 }
 
 void Estado_Blinking(fsm_t *fsm) {
@@ -114,11 +115,36 @@ void Estado_Error(fsm_t *fsm) {
 
 }
 
+
+/*
+void myTickHook( void *ptr ){
+
+   static bool_t ledState = OFF;
+
+   gpioMap_t led = (gpioMap_t)ptr;
+
+   if( ledState ){
+      ledState = OFF;
+   }
+   else{
+      ledState = ON;
+   }
+   gpioWrite( led, ledState );
+}
+*/
+
+
+
+
 int main(void) {
 
 	initHardware();
 	fsm_t fsm;
 	FSM_Init(&fsm, ESTADO_OFF);
+
+	delay_t delay;
+	delayConfig(&delay,1000);
+
 
 	while (1) {
 		switch (FSM_GetState(&fsm)) {
@@ -130,6 +156,7 @@ int main(void) {
 			break;
 		case ESTADO_BLINKING:
 			FSM_Run(&fsm, Estado_Blinking_Entry, Estado_Blinking, NULL);
+			if (delayRead(&delay))gpioWrite(LEDB,!gpioRead(LEDB));
 			break;
 		default:
 			FSM_Run(&fsm, NULL, Estado_Error, NULL);
