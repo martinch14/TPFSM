@@ -3,7 +3,6 @@
 #include "board.h"
 #include "sapi_tick.h"
 
-
 static void initHardware(void);
 
 static void initHardware(void) {
@@ -31,7 +30,7 @@ void FSM_Init(fsm_t *fsm, uint8_t state_init);
 void FSM_NextState_Set(fsm_t *fsm, uint8_t state_next);
 void FSM_Run(fsm_t *fsm, fsm_state_function_t Entry, fsm_state_function_t Loop,
 		fsm_state_function_t Exit);
-uint8_t FSM_GetState(fsm_t *fsm);
+uint8_t FSM_GetState(fsm_t *fsm, delay_t *delay_boton);
 
 void Estado_ON_Entry(fsm_t *fsm);
 void Estado_ON(fsm_t *fsm);
@@ -49,7 +48,6 @@ void FSM_Init(fsm_t *fsm, uint8_t state_init) {
 	fsm->state = state_init;
 	fsm->state_next = 0;
 }
-
 /*DEFINICION DE FUNCIONES MAQUINAS DE ESTADO*/
 void FSM_NextState_Set(fsm_t *fsm, uint8_t state_next) {
 	fsm->state_next = state_next;
@@ -72,15 +70,19 @@ void FSM_Run(fsm_t *fsm, fsm_state_function_t Entry, fsm_state_function_t Loop,
 	fsm->state = fsm->state_next;
 }
 
-uint8_t FSM_GetState(fsm_t *fsm) {
+uint8_t FSM_GetState(fsm_t *fsm, delay_t  * delay_boton) {
 	if (gpioRead(TEC1) == 0) {
-		if (fsm->state == ESTADO_OFF)
-			FSM_NextState_Set(fsm, ESTADO_ON);
-		if (fsm->state == ESTADO_ON)
-			FSM_NextState_Set(fsm, ESTADO_BLINKING);
-		if (fsm->state == ESTADO_BLINKING)
-			FSM_NextState_Set(fsm, ESTADO_OFF);
-		fsm->state = fsm->state_next;
+		if (delayRead(delay_boton)) {
+			if (gpioRead(TEC1) == 0) {
+				if (fsm->state == ESTADO_OFF)
+					FSM_NextState_Set(fsm, ESTADO_ON);
+				if (fsm->state == ESTADO_ON)
+					FSM_NextState_Set(fsm, ESTADO_BLINKING);
+				if (fsm->state == ESTADO_BLINKING)
+					FSM_NextState_Set(fsm, ESTADO_OFF);
+				fsm->state = fsm->state_next;
+			}
+		}
 	}
 	return fsm->state;
 }
@@ -115,27 +117,6 @@ void Estado_Error(fsm_t *fsm) {
 
 }
 
-
-/*
-void myTickHook( void *ptr ){
-
-   static bool_t ledState = OFF;
-
-   gpioMap_t led = (gpioMap_t)ptr;
-
-   if( ledState ){
-      ledState = OFF;
-   }
-   else{
-      ledState = ON;
-   }
-   gpioWrite( led, ledState );
-}
-*/
-
-
-
-
 int main(void) {
 
 	initHardware();
@@ -143,11 +124,12 @@ int main(void) {
 	FSM_Init(&fsm, ESTADO_OFF);
 
 	delay_t delay;
-	delayConfig(&delay,1000);
-
+	delay_t delay_boton;
+	delayConfig(&delay, 1000);
+	delayConfig(&delay_boton, 300);
 
 	while (1) {
-		switch (FSM_GetState(&fsm)) {
+		switch (FSM_GetState(&fsm, &delay_boton)) {
 		case ESTADO_OFF:
 			FSM_Run(&fsm, Estado_OFF_Entry, Estado_OFF, NULL);
 			break;
@@ -156,7 +138,8 @@ int main(void) {
 			break;
 		case ESTADO_BLINKING:
 			FSM_Run(&fsm, Estado_Blinking_Entry, Estado_Blinking, NULL);
-			if (delayRead(&delay))gpioWrite(LEDB,!gpioRead(LEDB));
+			if (delayRead(&delay))
+				gpioWrite(LEDB, !gpioRead(LEDB));
 			break;
 		default:
 			FSM_Run(&fsm, NULL, Estado_Error, NULL);
